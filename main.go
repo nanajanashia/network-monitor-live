@@ -127,10 +127,6 @@ func main() {
 
 		go processPacket(ipPacket, db, config)
 	}
-
-	var results []VirusTotalResult
-	_ = results
-	_ = config
 }
 
 func processPacket(packet *IPPacket, db *sql.DB, config *Config) {
