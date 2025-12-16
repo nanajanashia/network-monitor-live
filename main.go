@@ -125,15 +125,15 @@ func main() {
 			continue
 		}
 
+		if _, analyzing := currentlyAnalyzing.LoadOrStore(ipPacket.DestinationIP, true); analyzing {
+			continue
+		}
+
 		go processPacket(ipPacket, db, config)
 	}
 }
 
 func processPacket(packet *IPPacket, db *sql.DB, config *Config) {
-	// Check if IP is currently being analyzed
-	if _, analyzing := currentlyAnalyzing.LoadOrStore(packet.DestinationIP, true); analyzing {
-		return
-	}
 	defer currentlyAnalyzing.Delete(packet.DestinationIP)
 
 	var recentlyChecked bool
