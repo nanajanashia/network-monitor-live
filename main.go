@@ -26,7 +26,7 @@ type IPPacket struct {
 	TotalBytes     int    `json:"total_bytes"`
 	Version        uint8  `json:"version"`
 	TotalLength    uint16 `json:"total_length"`
-	Flags          uint8  `json:"flags"`
+	Flags          string `json:"flags"`
 	TTL            uint8  `json:"ttl"`
 	Protocol       uint8  `json:"protocol"`
 	HeaderChecksum uint16 `json:"header_checksum"`
@@ -170,7 +170,7 @@ func processPacket(packet *IPPacket, db *sql.DB, config *Config) {
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())`,
 		fmt.Sprintf("%d", packet.Version),
 		packet.TotalLength,
-		fmt.Sprintf("%d", packet.Flags),
+		packet.Flags,
 		packet.TTL,
 		fmt.Sprintf("%d", packet.Protocol),
 		packet.HeaderChecksum,
@@ -201,7 +201,7 @@ func parseIPHeader(packetNumber int, packetData []byte, linkType layers.LinkType
 			TotalBytes:     len(packetData),
 			Version:        4,
 			TotalLength:    ipv4.Length,
-			Flags:          uint8(ipv4.Flags),
+			Flags:          flagsToString(ipv4.Flags),
 			TTL:            ipv4.TTL,
 			Protocol:       uint8(ipv4.Protocol),
 			HeaderChecksum: ipv4.Checksum,
@@ -217,7 +217,7 @@ func parseIPHeader(packetNumber int, packetData []byte, linkType layers.LinkType
 			TotalBytes:     len(packetData),
 			Version:        6,
 			TotalLength:    ipv6.Length,
-			Flags:          0,
+			Flags:          "",
 			TTL:            ipv6.HopLimit,
 			Protocol:       uint8(ipv6.NextHeader),
 			HeaderChecksum: 0,
@@ -235,6 +235,24 @@ func isPrivateIP(ipStr string) bool {
 		return true
 	}
 	return ip.IsPrivate() || ip.IsLoopback() || ip.IsMulticast() || ip.IsLinkLocalUnicast() || ip.IsUnspecified()
+}
+
+func flagsToString(flags layers.IPv4Flag) string {
+	var flagStrs []string
+	if flags&layers.IPv4DontFragment != 0 {
+		flagStrs = append(flagStrs, "DF")
+	}
+	if flags&layers.IPv4MoreFragments != 0 {
+		flagStrs = append(flagStrs, "MF")
+	}
+	if len(flagStrs) == 0 {
+		return ""
+	}
+	result := flagStrs[0]
+	for i := 1; i < len(flagStrs); i++ {
+		result += "," + flagStrs[i]
+	}
+	return result
 }
 
 func checkIPOnVirusTotal(ip string, apiKey string, baseURL string) *VirusTotalResult {
@@ -255,6 +273,11 @@ func checkIPOnVirusTotal(ip string, apiKey string, baseURL string) *VirusTotalRe
 		return nil
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("VirusTotal API error for %s: status %d\n", ip, resp.StatusCode)
+		return nil
+	}
 
 	var response VirusTotalResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
