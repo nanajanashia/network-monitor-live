@@ -58,11 +58,13 @@ type VirusTotalResponse struct {
 }
 
 type Config struct {
-	NIC           string
-	APIKey        string
-	VirusTotalURL string
-	DBURL         string
-	LogFile       string
+	NIC              string
+	APIKey           string
+	VirusTotalURL    string
+	DBURL            string
+	LogFile          string
+	TelegramBotToken string
+	TelegramChatID   string
 }
 
 func loadConfig(configPath string) *Config {
@@ -72,11 +74,13 @@ func loadConfig(configPath string) *Config {
 	}
 
 	return &Config{
-		NIC:           os.Getenv("NIC"),
-		APIKey:        os.Getenv("APIKEY"),
-		VirusTotalURL: os.Getenv("VIRUSTOTAL_URL"),
-		DBURL:         os.Getenv("DB_URL"),
-		LogFile:       os.Getenv("LOG_FILE"),
+		NIC:              os.Getenv("NIC"),
+		APIKey:           os.Getenv("APIKEY"),
+		VirusTotalURL:    os.Getenv("VIRUSTOTAL_URL"),
+		DBURL:            os.Getenv("DB_URL"),
+		LogFile:          os.Getenv("LOG_FILE"),
+		TelegramBotToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
+		TelegramChatID:   os.Getenv("TELEGRAM_CHAT_ID"),
 	}
 }
 
@@ -195,6 +199,7 @@ func processPacket(packet *IPPacket, db *sql.DB, config *Config) {
 	if result.Malicious > 0 || result.Suspicious > 0 {
 		logAlert(fmt.Sprintf("Threat detected: %s (Malicious: %d, Suspicious: %d)",
 			packet.DestinationIP, result.Malicious, result.Suspicious))
+		sendTelegramAlert(config, packet.DestinationIP, result.Malicious, result.Suspicious)
 	}
 }
 
@@ -242,6 +247,31 @@ func isPrivateIP(ipStr string) bool {
 		return true
 	}
 	return ip.IsPrivate() || ip.IsLoopback() || ip.IsMulticast() || ip.IsLinkLocalUnicast() || ip.IsUnspecified()
+}
+
+func sendTelegramAlert(config *Config, ip string, malicious int, suspicious int) {
+	if config.TelegramBotToken == "" || config.TelegramChatID == "" {
+		return
+	}
+
+	message := fmt.Sprintf("⚠️ Threat Detected!\nIP: %s\nMalicious: %d\nSuspicious: %d", ip, malicious, suspicious)
+	apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage",
+		config.TelegramBotToken,
+	)
+
+	resp, err := http.PostForm(apiURL, map[string][]string{
+		"chat_id": {config.TelegramChatID},
+		"text":    {message},
+	})
+	if err != nil {
+		logError(fmt.Sprintf("Telegram alert failed: %v", err))
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		logError(fmt.Sprintf("Telegram API error: status %d", resp.StatusCode))
+	}
 }
 
 func flagsToString(flags layers.IPv4Flag) string {
