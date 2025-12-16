@@ -62,6 +62,7 @@ type Config struct {
 	APIKey        string
 	VirusTotalURL string
 	DBURL         string
+	LogFile       string
 }
 
 func loadConfig(configPath string) *Config {
@@ -75,6 +76,7 @@ func loadConfig(configPath string) *Config {
 		APIKey:        os.Getenv("APIKEY"),
 		VirusTotalURL: os.Getenv("VIRUSTOTAL_URL"),
 		DBURL:         os.Getenv("DB_URL"),
+		LogFile:       os.Getenv("LOG_FILE"),
 	}
 }
 
@@ -99,11 +101,19 @@ func main() {
 
 	config := loadConfig(*configPath)
 
+	if err := initLogger(config.LogFile); err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer closeLogger()
+
+	logInfo("Application started")
+
 	db := connectDB(config.DBURL)
 	defer db.Close()
 
 	handle, err := pcap.OpenLive(config.NIC, 1600, true, pcap.BlockForever)
 	if err != nil {
+		logError(fmt.Sprintf("Failed to open network interface: %v", err))
 		log.Fatal(err)
 	}
 	defer handle.Close()
@@ -111,7 +121,7 @@ func main() {
 	linkType := handle.LinkType()
 	packetSource := gopacket.NewPacketSource(handle, linkType)
 
-	fmt.Println("Starting continuous packet capture...")
+	logInfo(fmt.Sprintf("Packet capture started on %s", config.NIC))
 	packetNumber := 0
 
 	for packet := range packetSource.Packets() {
@@ -144,7 +154,7 @@ func processPacket(packet *IPPacket, db *sql.DB, config *Config) {
 			AND checked_at > NOW() - INTERVAL '24 hours'
 		)`, packet.DestinationIP).Scan(&recentlyChecked)
 	if err != nil {
-		fmt.Printf("Error checking destination IP: %v\n", err)
+		logError(fmt.Sprintf("DB query error for %s: %v", packet.DestinationIP, err))
 		return
 	}
 
@@ -154,7 +164,6 @@ func processPacket(packet *IPPacket, db *sql.DB, config *Config) {
 
 	result := checkIPOnVirusTotal(packet.DestinationIP, config.APIKey, config.VirusTotalURL)
 	if result == nil {
-		fmt.Printf("Failed to check IP %s on VirusTotal\n", packet.DestinationIP)
 		return
 	}
 
@@ -179,12 +188,14 @@ func processPacket(packet *IPPacket, db *sql.DB, config *Config) {
 		result.ScanDate,
 	)
 	if err != nil {
-		fmt.Printf("Error inserting packet info: %v\n", err)
+		logError(fmt.Sprintf("DB insert error for %s: %v", packet.DestinationIP, err))
 		return
 	}
 
-	fmt.Printf("Inserted: %s (Malicious: %d, Suspicious: %d)\n",
-		packet.DestinationIP, result.Malicious, result.Suspicious)
+	if result.Malicious > 0 || result.Suspicious > 0 {
+		logAlert(fmt.Sprintf("Threat detected: %s (Malicious: %d, Suspicious: %d)",
+			packet.DestinationIP, result.Malicious, result.Suspicious))
+	}
 }
 
 func parseIPHeader(packetNumber int, packetData []byte, linkType layers.LinkType) *IPPacket {
@@ -256,7 +267,7 @@ func checkIPOnVirusTotal(ip string, apiKey string, baseURL string) *VirusTotalRe
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		fmt.Printf("Error creating request for %s: %v\n", ip, err)
+		logError(fmt.Sprintf("VirusTotal request error for %s: %v", ip, err))
 		return nil
 	}
 
@@ -265,19 +276,19 @@ func checkIPOnVirusTotal(ip string, apiKey string, baseURL string) *VirusTotalRe
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("Error checking %s: %v\n", ip, err)
+		logError(fmt.Sprintf("VirusTotal connection error for %s: %v", ip, err))
 		return nil
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("VirusTotal API error for %s: status %d\n", ip, resp.StatusCode)
+		logError(fmt.Sprintf("VirusTotal API error for %s: status %d", ip, resp.StatusCode))
 		return nil
 	}
 
 	var response VirusTotalResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		fmt.Printf("Error parsing JSON for %s: %v\n", ip, err)
+		logError(fmt.Sprintf("VirusTotal JSON parse error for %s: %v", ip, err))
 		return nil
 	}
 
