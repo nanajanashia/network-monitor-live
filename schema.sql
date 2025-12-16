@@ -1,4 +1,4 @@
-CREATE DATABASE network_monitor IF NOT EXISTS;
+CREATE DATABASE network_monitor;
 
 \c network_monitor
 

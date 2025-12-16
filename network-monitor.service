@@ -1,0 +1,14 @@
+[Unit]
+Description=Network Monitor Service
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/network-monitor -c /etc/network-monitor/.env
+Restart=always
+RestartSec=5
+User=root
+WorkingDirectory=/etc/network-monitor
+
+[Install]
+WantedBy=multi-user.target
