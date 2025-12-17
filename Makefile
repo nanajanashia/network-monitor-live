@@ -1,5 +1,5 @@
 run:
-	sudo go run main.go logger.go
+	sudo go run .
 
 build:
 	go build -o network-monitor .

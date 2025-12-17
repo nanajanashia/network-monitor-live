@@ -253,7 +253,7 @@ func sendTelegramAlert(config *Config, ip string, malicious int, suspicious int)
 		return
 	}
 
-	message := fmt.Sprintf("⚠️ საფრთხე აღმოჩენილია!!\nIP: %s\nMalicious: %d\nSuspicious: %d", ip, malicious, suspicious)
+	message := fmt.Sprintf("⚠️ აღმოჩენილია საფრთხე!\nIP: %s\nMalicious: %d\nSuspicious: %d", ip, malicious, suspicious)
 	apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage",
 		config.TelegramBotToken,
 	)
