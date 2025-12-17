@@ -94,7 +94,6 @@ func connectDB(dbURL string) *sql.DB {
 		log.Fatal("Error connecting to database: ", err)
 	}
 
-	fmt.Println("Connected to database")
 	return db
 }
 
@@ -254,7 +253,7 @@ func sendTelegramAlert(config *Config, ip string, malicious int, suspicious int)
 		return
 	}
 
-	message := fmt.Sprintf("⚠️ Threat Detected!\nIP: %s\nMalicious: %d\nSuspicious: %d", ip, malicious, suspicious)
+	message := fmt.Sprintf("⚠️ საფრთხე აღმოჩენილია!!\nIP: %s\nMalicious: %d\nSuspicious: %d", ip, malicious, suspicious)
 	apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage",
 		config.TelegramBotToken,
 	)

@@ -4,15 +4,17 @@
 
 ## წინაპირობები
 
-- Go 1.25+
+- Go 1.21+
 - PostgreSQL
 - VirusTotal API key
+- libpcap (`apt-get install libpcap-dev`)
+- ca-certificates (`apt-get install ca-certificates`) - თუ SSL შეცდომებია
 
 ## გაშვება
 
 ### 1. ბაზა
 
-შექმენი ბაზა და ცხრილები:
+ბაზის შექმნა თავისი ცხრილით:
 
 ```bash
 psql -U postgres -f schema.sql
@@ -53,7 +55,7 @@ make build
 sudo ./network-monitor -c .env
 ```
 
-## Systemd (მხოლოდ Linux-ზე)
+## Systemd 
 
 ```bash
 make install   # build, install, enable service

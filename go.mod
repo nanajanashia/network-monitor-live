@@ -1,6 +1,6 @@
 module github.com/nanajanashia/network-monitor-live
 
-go 1.25.0
+go 1.21
 
 require (
 	github.com/google/gopacket v1.1.19
