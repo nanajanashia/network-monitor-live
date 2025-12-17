@@ -22,7 +22,7 @@ psql -U postgres -f schema.sql
 
 ### 2. კონფიგურაცია
 
-შეცვალეთ კონფიგის მონაცემები
+დააკოპირეთ `.env.example` ფაილი `.env`-ად და შეავსეთ თქვენი მონაცემებით:
 
 ```env
 cp .env.example .env
