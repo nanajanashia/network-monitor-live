@@ -22,20 +22,17 @@ import (
 var currentlyAnalyzing sync.Map
 
 type IPPacket struct {
-	PacketNumber   int    `json:"packet_number"`
-	TotalBytes     int    `json:"total_bytes"`
-	Version        uint8  `json:"version"`
-	TotalLength    uint16 `json:"total_length"`
-	Flags          string `json:"flags"`
-	TTL            uint8  `json:"ttl"`
-	Protocol       uint8  `json:"protocol"`
-	HeaderChecksum uint16 `json:"header_checksum"`
-	SourceIP       string `json:"source_ip"`
-	DestinationIP  string `json:"destination_ip"`
+	Version        uint8
+	TotalLength    uint16
+	Flags          string
+	TTL            uint8
+	Protocol       uint8
+	HeaderChecksum uint16
+	SourceIP       string
+	DestinationIP  string
 }
 
 type VirusTotalResult struct {
-	IP         string
 	Malicious  int
 	Suspicious int
 	Harmless   int
@@ -125,11 +122,9 @@ func main() {
 	packetSource := gopacket.NewPacketSource(handle, linkType)
 
 	logInfo(fmt.Sprintf("Packet capture started on %s", config.NIC))
-	packetNumber := 0
 
 	for packet := range packetSource.Packets() {
-		packetNumber++
-		ipPacket := parseIPHeader(packetNumber, packet.Data(), linkType)
+		ipPacket := parseIPHeader(packet.Data(), linkType)
 		if ipPacket == nil {
 			continue
 		}
@@ -202,14 +197,12 @@ func processPacket(packet *IPPacket, db *sql.DB, config *Config) {
 	}
 }
 
-func parseIPHeader(packetNumber int, packetData []byte, linkType layers.LinkType) *IPPacket {
+func parseIPHeader(packetData []byte, linkType layers.LinkType) *IPPacket {
 	packet := gopacket.NewPacket(packetData, linkType, gopacket.Default)
 
 	if ipv4Layer := packet.Layer(layers.LayerTypeIPv4); ipv4Layer != nil {
 		ipv4, _ := ipv4Layer.(*layers.IPv4)
 		return &IPPacket{
-			PacketNumber:   packetNumber,
-			TotalBytes:     len(packetData),
 			Version:        4,
 			TotalLength:    ipv4.Length,
 			Flags:          flagsToString(ipv4.Flags),
@@ -224,8 +217,6 @@ func parseIPHeader(packetNumber int, packetData []byte, linkType layers.LinkType
 	if ipv6Layer := packet.Layer(layers.LayerTypeIPv6); ipv6Layer != nil {
 		ipv6, _ := ipv6Layer.(*layers.IPv6)
 		return &IPPacket{
-			PacketNumber:   packetNumber,
-			TotalBytes:     len(packetData),
 			Version:        6,
 			TotalLength:    ipv6.Length,
 			Flags:          "",
@@ -325,7 +316,6 @@ func checkIPOnVirusTotal(ip string, apiKey string, baseURL string) *VirusTotalRe
 	scanDate := time.Unix(response.Data.Attributes.LastAnalysisDate, 0).Format("2006-01-02")
 
 	return &VirusTotalResult{
-		IP:         ip,
 		Malicious:  stats.Malicious,
 		Suspicious: stats.Suspicious,
 		Harmless:   stats.Harmless,
